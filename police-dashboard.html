@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SecureMe — Command Dashboard</title>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAzfiI2Oh632S5vjsbDn0s_FMXJuzFGKwk&libraries=places,drawing&callback=Function.prototype" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg:        #080D14;
+      --surface:   #0E1520;
+      --surface2:  #141C2A;
+      --border:    rgba(255,255,255,0.07);
+      --border-active: rgba(56,189,248,0.35);
+      --accent:    #38BDF8;
+      --accent2:   #0EA5E9;
+      --danger:    #F43F5E;
+      --danger-soft: rgba(244,63,94,0.12);
+      --success:   #10B981;
+      --warning:   #F59E0B;
+      --purple:    #8B5CF6;
+      --text:      #E2E8F0;
+      --text-muted:#64748B;
+      --text-dim:  #334155;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ─── NOISE OVERLAY ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ─── LAYOUT ─── */
+    .shell { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+    /* ─── SIDEBAR ─── */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, var(--accent2), var(--purple));
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-family: Arial, monospace;
+    }
+
+    .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover { color: var(--text); background: var(--surface2); }
+    .nav-item.active {
+      color: var(--accent);
+      background: rgba(56,189,248,0.08);
+      border-color: rgba(56,189,248,0.15);
+    }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+    .nav-dot {
+      margin-left: auto;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--danger);
+      animation: blink 2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: Arial, monospace;
+      font-size: 12px;
+      color: var(--success);
+      letter-spacing: 1px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: blink 1.5s infinite;
+    }
+
+    /* ─── MAIN ─── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── TOPBAR ─── */
+    .topbar {
+      height: 60px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-family: Arial, sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      flex: 1;
+    }
+    .topbar-time {
+      font-family: Arial, monospace;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .topbar-refresh {
+      background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.25);
+      color: var(--accent);
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: Arial, monospace;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+    }
+    .topbar-refresh:hover { background: rgba(56,189,248,0.2); }
+
+    /* ─── CONTENT AREA ─── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface2) transparent;
+    }
+
+    /* ─── PAGE ─── */
+    .page { display: none; animation: fadeIn 0.2s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ─── SECTION HEADER ─── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .section-header h2 {
+      font-family: Arial, sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .section-line { flex: 1; height: 1px; background: var(--border); }
+    .section-count {
+      font-family: Arial, monospace;
+      font-size: 15px;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    /* ─── GRID ─── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .three-col { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .four-col { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+    .full-col { grid-column: 1 / -1; }
+
+    /* ─── CARD ─── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    }
+    .card-title {
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── STAT CARDS ─── */
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent2), var(--purple));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+    .stat-card:hover::after { transform: scaleX(1); }
+    .stat-label {
+      font-family: Arial, monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .stat-value {
+      font-family: Arial, sans-serif;
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-sub {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .stat-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 14px 0 12px;
+    }
+    .stat-value-sm {
+      font-family: Arial, sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+
+    /* ─── ALERT ITEMS ─── */
+    .alert-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      position: relative;
+      transition: border-color 0.2s;
+    }
+    .alert-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 12px; bottom: 12px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: var(--danger);
+    }
+    .alert-item:hover { border-color: rgba(244,63,94,0.3); }
+    .alert-item.walk::before { background: var(--warning); }
+    .alert-item.cab::before { background: var(--accent); }
+
+    .alert-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .alert-user {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 2px;
+    }
+    .alert-reason {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .alert-badge {
+      font-family: Arial, monospace;
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    .badge-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid rgba(244,63,94,0.25); }
+    .badge-walk { background: rgba(245,158,11,0.1); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
+    .badge-cab { background: rgba(56,189,248,0.08); color: var(--accent); border: 1px solid rgba(56,189,248,0.2); }
+
+    .alert-meta {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 4px 16px;
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-family: Arial, monospace;
+    }
+    .alert-meta span { display: flex; align-items: center; gap: 4px; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 7px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: Arial, sans-serif;
+      transition: all 0.15s;
+      letter-spacing: 0.3px;
+    }
+    .btn-call { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.25); }
+    .btn-call:hover { background: rgba(16,185,129,0.25); }
+    .btn-track { background: rgba(56,189,248,0.12); color: var(--accent); border: 1px solid rgba(56,189,248,0.25); }
+    .btn-track:hover { background: rgba(56,189,248,0.22); }
+    .btn-stream { background: rgba(139,92,246,0.12); color: var(--purple); border: 1px solid rgba(139,92,246,0.25); }
+    .btn-stream:hover { background: rgba(139,92,246,0.22); }
+    .btn-stream.streaming { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.35); }
+    .btn-stream.streaming:hover { background: rgba(16,185,129,0.25); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ─── EMPTY STATE ─── */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+    .empty .icon { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+
+    /* ─── ANALYTICS CHARTS ─── */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .chart-title {
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .chart-inner { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: center; }
+    .chart-canvas-wrap { height: 140px; position: relative; }
+    .chart-stats { display: flex; flex-direction: column; gap: 10px; }
+    .chart-stat-row { display: flex; justify-content: space-between; align-items: center; }
+    .chart-stat-label { font-size: 15px; color: var(--text-muted); }
+    .chart-stat-value { font-family: Arial, monospace; font-size: 18px; font-weight: 500; }
+    .chart-change {
+      display: inline-block;
+      font-family: Arial, monospace;
+      font-size: 15px;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .change-up { background: rgba(16,185,129,0.1); color: var(--success); }
+    .change-down { background: rgba(244,63,94,0.1); color: var(--danger); }
+
+    /* ─── RISK ZONE PAGE ─── */
+    .rz-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .rz-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: Arial, sans-serif;
+      transition: all 0.15s;
+    }
+    .rz-btn-save { background: rgba(56,189,248,0.12); color: var(--accent); border: 1px solid rgba(56,189,248,0.25); }
+    .rz-btn-save:hover { background: rgba(56,189,248,0.22); }
+    .rz-btn-show { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.25); }
+    .rz-btn-show:hover { background: rgba(16,185,129,0.22); }
+    .rz-btn-delete { background: rgba(244,63,94,0.1); color: var(--danger); border: 1px solid rgba(244,63,94,0.2); }
+    .rz-btn-delete:hover { background: rgba(244,63,94,0.2); }
+    .rz-status {
+      font-family: Arial, monospace;
+      font-size: 15px;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      flex: 1;
+    }
+    .rz-map-wrap {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      height: calc(100vh - 240px);
+      min-height: 450px;
+    }
+
+    /* ─── FIELD ROWS ─── */
+    .field-row {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 5px;
+      line-height: 1.5;
+    }
+    .field-label {
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+    /* ─── MAP OVERLAY ─── */
+    #mapContainer {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 9000;
+    }
+    #map { width: 100%; height: 100%; }
+    #backBtn {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      display: none;
+      z-index: 10000;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+    }
+
+    /* ─── ALERT POPUP ─── */
+    #globalAlertPopup {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(4px);
+    }
+    #gapInner {
+      padding: 32px;
+      border-radius: 20px;
+      width: 480px;
+      max-width: 92vw;
+      border: 1px solid;
+      position: relative;
+      animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.88) translateY(20px); opacity: 0; }
+      to   { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    #gapBadge { font-size: 40px; margin-bottom: 10px; display: block; }
+    #gapTitle {
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    #gapSubtitle {
+      font-size: 14px;
+      opacity: 0.6;
+      margin-bottom: 20px;
+      font-family: Arial, monospace;
+    }
+    #gapBody {
+      background: rgba(0,0,0,0.25);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 2;
+      margin-bottom: 20px;
+    }
+    #gapAckBtn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      letter-spacing: 0.5px;
+      transition: opacity 0.15s;
+    }
+    #gapAckBtn:hover { opacity: 0.9; }
+    #gapQueueInfo { margin-top: 10px; font-size: 15px; text-align: center; opacity: 0.45; font-family: Arial, monospace; }
+
+    /* ─── CLOCK ─── */
+    #clock { font-family: Arial, monospace; font-size: 14px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ─── SIDEBAR ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-badge">🛡 SecureMe</div>
+      <div class="brand-sub">Command Center</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('status')" id="nav-status">
+        <span class="icon">◈</span> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('walk')" id="nav-walk">
+        <span class="icon"></span> Walk Monitor
+        <span class="nav-dot" id="walkDot" style="display:none;"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('cab')" id="nav-cab">
+        <span class="icon"></span> Cab Monitor
+        <span class="nav-dot" id="cabDot" style="display:none;"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('highrisk')" id="nav-highrisk">
+        <span class="icon">⚠</span> High Risk Alerts
+        <span class="nav-dot" id="hrDot" style="display:none;"></span>
+      </div>
+      <div class="nav-item" onclick="showPage('riskzones')" id="nav-riskzones">
+        <span class="icon">🗺</span> Risk Zones
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="live-indicator">
+        <span class="live-dot"></span>
+        LIVE — AUTO REFRESH 5s
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN ─── -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-title" id="pageTitle">Overview</div>
+      <div id="clock"></div>
+      <button class="topbar-refresh" onclick="refreshAll()">↻ Refresh</button>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ══════════ STATUS PAGE ══════════ -->
+      <div class="page active" id="statusPage">
+
+        <!-- Analytics Row -->
+        <div class="section-header">
+          <h2>Analytics</h2>
+          <div class="section-line"></div>
+          <div class="section-count">COMPARISONS</div>
+        </div>
+        <div class="three-col" style="margin-bottom:24px;">
+          <div class="chart-card">
+            <div class="chart-title">Today vs Yesterday</div>
+            <div class="chart-inner">
+              <div class="chart-canvas-wrap"><canvas id="dayChart"></canvas></div>
+              <div class="chart-stats">
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Cab</span>
+                  <span class="chart-stat-value" id="today-cab-alerts">0</span>
+                </div>
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Walk</span>
+                  <span class="chart-stat-value" id="today-walk-alerts">0</span>
+                </div>
+                <div><span class="chart-change" id="day-comparison">0%</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">This Week vs Last</div>
+            <div class="chart-inner">
+              <div class="chart-canvas-wrap"><canvas id="weekChart"></canvas></div>
+              <div class="chart-stats">
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Cab</span>
+                  <span class="chart-stat-value" id="week-cab-alerts">0</span>
+                </div>
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Walk</span>
+                  <span class="chart-stat-value" id="week-walk-alerts">0</span>
+                </div>
+                <div><span class="chart-change" id="week-comparison">0%</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">This Month vs Last</div>
+            <div class="chart-inner">
+              <div class="chart-canvas-wrap"><canvas id="monthChart"></canvas></div>
+              <div class="chart-stats">
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Cab</span>
+                  <span class="chart-stat-value" id="month-cab-alerts">0</span>
+                </div>
+                <div class="chart-stat-row">
+                  <span class="chart-stat-label">Walk</span>
+                  <span class="chart-stat-value" id="month-walk-alerts">0</span>
+                </div>
+                <div><span class="chart-change" id="month-comparison">0%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trips -->
+        <div class="section-header">
+          <h2>Active Trips</h2>
+          <div class="section-line"></div>
+          <div class="section-count">TRIPS</div>
+        </div>
+        <div class="four-col" style="margin-bottom:24px;">
+          <div class="stat-card">
+            <div class="stat-label">Today</div>
+            <div class="stat-value" id="count-cab-today">0</div>
+            <div class="stat-sub">Cab Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-walk-today">0</div>
+            <div class="stat-sub">Walk Trips</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">This Week</div>
+            <div class="stat-value" id="count-week-cab-trips">0</div>
+            <div class="stat-sub">Cab Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-week-walk-trips">0</div>
+            <div class="stat-sub">Walk Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-week-total-trips">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">This Month</div>
+            <div class="stat-value" id="count-month-cab-trips">0</div>
+            <div class="stat-sub">Cab Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-month-walk-trips">0</div>
+            <div class="stat-sub">Walk Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-month-total-trips">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Lifetime</div>
+            <div class="stat-value" id="count-total-cab-trips">0</div>
+            <div class="stat-sub">Cab Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-total-walk-trips">0</div>
+            <div class="stat-sub">Walk Trips</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-lifetime-total-trips">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="section-header">
+          <h2 style="color:var(--danger);">Safety Alerts</h2>
+          <div class="section-line"></div>
+          <div class="section-count">ALERTS</div>
+        </div>
+        <div class="four-col">
+          <div class="stat-card">
+            <div class="stat-label">This Week</div>
+            <div class="stat-value" id="count-week-cab">0</div>
+            <div class="stat-sub">Cab Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-week-walk">0</div>
+            <div class="stat-sub">Walk Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-week-total">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">This Month</div>
+            <div class="stat-value" id="count-month-cab">0</div>
+            <div class="stat-sub">Cab Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-month-walk">0</div>
+            <div class="stat-sub">Walk Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-month-total">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Lifetime</div>
+            <div class="stat-value" id="count-total-cab">0</div>
+            <div class="stat-sub">Cab Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-total-walk">0</div>
+            <div class="stat-sub">Walk Alerts</div>
+            <hr class="stat-divider"/>
+            <div class="stat-value-sm" id="count-total">0</div>
+            <div class="stat-sub">Total</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ WALK PAGE ══════════ -->
+      <div class="page" id="walkPage">
+        <div class="two-col">
+          <div>
+            <div class="section-header">
+              <h2>Active Sessions</h2>
+              <div class="section-line"></div>
+            </div>
+            <div id="activeWalkSessions"><div class="empty"><div class="icon">🚶</div>Loading sessions...</div></div>
+          </div>
+          <div>
+            <div class="section-header">
+              <h2 style="color:var(--danger)">Panic Triggers</h2>
+              <div class="section-line"></div>
+            </div>
+            <div id="panicList"><div class="empty"><div class="icon">🔔</div>Loading alerts...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ CAB PAGE ══════════ -->
+      <div class="page" id="cabPage">
+        <div class="two-col">
+          <div>
+            <div class="section-header">
+              <h2>Active Cab Trips</h2>
+              <div class="section-line"></div>
+            </div>
+            <div id="activeTrips"><div class="empty"><div class="icon">🚖</div>Loading trips...</div></div>
+          </div>
+          <div>
+            <div class="section-header">
+              <h2 style="color:var(--danger)">Police Support Alerts</h2>
+              <div class="section-line"></div>
+            </div>
+            <div id="cabAlerts"><div class="empty"><div class="icon">🚨</div>Loading alerts...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ HIGH RISK PAGE ══════════ -->
+      <div class="page" id="highRiskPage">
+        <div class="section-header">
+          <h2 style="color:var(--danger)">High Risk Zone Alerts</h2>
+          <div class="section-line"></div>
+        </div>
+        <div id="highRiskAlertsList"><div class="empty"><div class="icon">⚠</div>Loading...</div></div>
+      </div>
+
+      <!-- ══════════ RISK ZONES PAGE ══════════ -->
+      <div class="page" id="riskZonesPage">
+        <div class="section-header">
+          <h2>Risk Zone Manager</h2>
+          <div class="section-line"></div>
+        </div>
+        <div class="rz-toolbar">
+          <button class="rz-btn rz-btn-save" onclick="rzSaveZone()">💾 Save Zone</button>
+          <button class="rz-btn rz-btn-show" id="rzShowBtn" onclick="rzToggleZones()">👁 Show Zones</button>
+          <button class="rz-btn rz-btn-delete" id="rzDeleteBtn" onclick="rzEnableDelete()">🗑 Delete Zone</button>
+          <div class="rz-status" id="rzStatusMsg">Draw a polygon on the map, then click Save Zone.</div>
+        </div>
+        <div class="rz-map-wrap">
+          <div id="rzMap" style="width:100%;height:100%;"></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- MAP FULLSCREEN -->
+<div id="mapContainer"><div id="map"></div></div>
+<button id="backBtn" onclick="closeMap()">← Back</button>
+<button id="stopStreamBtn" onclick="closeMap()" style="display:none;position:fixed;top:20px;left:130px;z-index:10000;background:#F43F5E;color:white;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;font-family:Arial,sans-serif;font-size:13px;font-weight:700;">⬛ Stop Live Stream</button>
+
+<!-- ALERT POPUP -->
+<div id="globalAlertPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;justify-content:center;align-items:center;backdrop-filter:blur(4px);">
+  <div id="gapInner" style="background:linear-gradient(135deg,#1a0a0f,#2d0a1a);border-color:#F43F5E;border-radius:20px;padding:32px;width:480px;max-width:92vw;border:1px solid;box-shadow:0 0 60px rgba(244,63,94,0.3);position:relative;">
+    <!-- Ignore button -->
+    <button id="gapIgnoreBtn" title="Ignore this alert" style="position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);font-size:15px;cursor:pointer;line-height:1;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">✕</button>
+    <span id="gapBadge" style="font-size:40px;display:block;margin-bottom:10px;">🚨</span>
+    <h2 id="gapTitle" style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;color:white;">ALERT</h2>
+    <p id="gapSubtitle" style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:20px;font-family:'Share Tech Mono',monospace;"></p>
+    <div id="gapBody" style="background:rgba(0,0,0,0.3);border-radius:12px;padding:16px;font-size:13.5px;line-height:2;margin-bottom:20px;color:white;"></div>
+    <button id="gapAckBtn" style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;background:white;color:#c0392b;">✓ Acknowledge & Navigate</button>
+    <div id="gapQueueInfo" style="margin-top:10px;font-size:11px;text-align:center;color:rgba(255,255,255,0.4);font-family:'Share Tech Mono',monospace;"></div>
+  </div>
+</div>
+
+<!-- ─────────────────── SCRIPTS ─────────────────── -->
+<script>
+const BASE = "https://securebackend.in";
+
+/* ── Clock ── */
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) +
+    ' — ' + now.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+/* ── Page Navigation ── */
+const pageTitles = { status:'Overview', walk:'Walk Monitor', cab:'Cab Monitor', highrisk:'High Risk Alerts', riskzones:'Risk Zone Manager' };
+
+function showPage(page){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const map = { status:'statusPage', walk:'walkPage', cab:'cabPage', highrisk:'highRiskPage', riskzones:'riskZonesPage' };
+  const navMap = { status:'nav-status', walk:'nav-walk', cab:'nav-cab', highrisk:'nav-highrisk', riskzones:'nav-riskzones' };
+  if(map[page]) document.getElementById(map[page]).classList.add('active');
+  if(navMap[page]) document.getElementById(navMap[page]).classList.add('active');
+  document.getElementById('pageTitle').textContent = pageTitles[page] || '';
+  if(page === 'riskzones' && typeof initRzMap === 'function') initRzMap();
+}
+
+/* ── API ── */
+async function apiCall(path, method='GET', body=null){
+  const opt = { method, headers:{'Content-Type':'application/json'} };
+  if(body) opt.body = JSON.stringify(body);
+  const res = await fetch(BASE + path, opt);
+  return res.json();
+}
+
+/* Mark all stream buttons for a userId as "streaming" (green) */
+function setStreamingState(userId){
+  document.querySelectorAll('.btn-stream').forEach(btn => {
+    if(btn.dataset.userid === userId){
+      btn.classList.add('streaming');
+      btn.textContent = '🟢 Streaming';
+    }
+  });
+}
+
+/* ── Stream ── */
+async function createStream(userId){
+  try {
+    const data = await apiCall('/api/stream/create', 'POST', { userId });
+
+    if(!data?.streamId || !data?.streamUrl){
+      alert('Could not create stream. Backend did not return a stream URL.');
+      return;
+    }
+
+    const streamUrl = data.streamUrl;
+    const streamId  = data.streamId;
+
+    try { await navigator.clipboard.writeText(streamUrl); } catch(e){}
+
+    // Turn all stream buttons for this user green
+    setStreamingState(userId);
+
+    showStreamShareModal(userId, streamUrl, streamId);
+    openLiveStreamMap(userId, streamId);
+
+  } catch(e){
+    console.error('Stream error:', e);
+    alert('Failed to create stream. Check backend connection.');
+  }
+}
+
+/* ── Share Modal ── */
+function showStreamShareModal(userId, streamUrl, streamId){
+  const existing = document.getElementById('streamShareModal');
+  if(existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'streamShareModal';
+  modal.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,0.85);
+    z-index:999999; display:flex; justify-content:center; align-items:center;
+    backdrop-filter:blur(4px);
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:linear-gradient(135deg,#0d1a2d,#0e1520);
+      border:1px solid rgba(56,189,248,0.35); border-radius:20px;
+      padding:32px; width:500px; max-width:92vw; position:relative;
+      box-shadow:0 0 60px rgba(56,189,248,0.15);
+      font-family:Arial,sans-serif;
+    ">
+      <button onclick="document.getElementById('streamShareModal').remove()" style="
+        position:absolute; top:14px; right:14px; width:32px; height:32px;
+        border-radius:50%; border:1px solid rgba(255,255,255,0.15);
+        background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6);
+        font-size:15px; cursor:pointer;
+      ">✕</button>
+
+      <div style="font-size:32px; margin-bottom:8px;"></div>
+      <h2 style="font-size:18px; font-weight:800; letter-spacing:1px;
+        text-transform:uppercase; color:white; margin:0 0 4px;">
+        Live Stream Created
+      </h2>
+      <p style="font-size:13px; color:rgba(255,255,255,0.5); margin:0 0 20px; font-family:Arial,monospace;">
+        Tracking: <b style="color:#38BDF8;">${userId}</b> &nbsp;|&nbsp;
+        ID: <span style="color:#8B5CF6;">${streamId.slice(0,8)}…</span>
+      </p>
+
+      <!-- URL display -->
+      <div style="
+        background:rgba(0,0,0,0.35); border:1px solid rgba(56,189,248,0.2);
+        border-radius:12px; padding:14px 16px; margin-bottom:16px;
+        word-break:break-all; font-family:Arial,monospace; font-size:12px;
+        color:#38BDF8; line-height:1.7;
+      ">${streamUrl}</div>
+
+      <!-- Buttons -->
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <button id="copyStreamBtn" onclick="
+          navigator.clipboard.writeText('${streamUrl}');
+          this.textContent='✅ Copied!';
+          setTimeout(()=>this.textContent='📋 Copy URL',2000);
+        " style="flex:1; padding:11px; border:1px solid rgba(56,189,248,0.3);
+          background:rgba(56,189,248,0.1); color:#38BDF8; border-radius:10px;
+          cursor:pointer; font-size:13px; font-weight:700;">📋 Copy URL</button>
+
+        <button onclick="
+          const msg=encodeURIComponent('🚨 LIVE TRACKING LINK\nUser: ${userId}\n${streamUrl}');
+          window.open('https://wa.me/?text='+msg,'_blank');
+        " style="flex:1; padding:11px; border:1px solid rgba(37,211,102,0.3);
+          background:rgba(37,211,102,0.1); color:#25D366; border-radius:10px;
+          cursor:pointer; font-size:13px; font-weight:700;">💬 WhatsApp</button>
+
+        <button onclick="window.open('${streamUrl}','_blank')" style="
+          flex:1; padding:11px; border:1px solid rgba(139,92,246,0.3);
+          background:rgba(139,92,246,0.1); color:#8B5CF6; border-radius:10px;
+          cursor:pointer; font-size:13px; font-weight:700;">🗺 Open Map</button>
+      </div>
+
+      <button onclick="
+        window.open('sms:?body='+encodeURIComponent('🚨 LIVE TRACKING — ${userId}: ${streamUrl}'),'_blank');
+      " style="width:100%; padding:11px; border:1px solid rgba(245,158,11,0.3);
+        background:rgba(245,158,11,0.08); color:#F59E0B; border-radius:10px;
+        cursor:pointer; font-size:13px; font-weight:700; margin-bottom:14px;">
+        📱 Send via SMS
+      </button>
+
+      <p style="font-size:11px; color:rgba(255,255,255,0.3); text-align:center;
+        font-family:Arial,monospace; line-height:1.6; margin:0;">
+        Share this link with any patrol vehicle.<br/>
+        Anyone who opens it sees the live navigation map — no login needed.
+      </p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
+}
+
+/* ── Live Map on Dashboard (polls backend stream endpoint every 3s) ── */
+let liveStreamInterval     = null;
+let liveUserMarker         = null;
+let liveDirectionsRenderer = null;
+let liveStreamUserId       = null;
+
+function openLiveStreamMap(userId, streamId){
+  stopLiveStream();
+  liveStreamUserId = userId;
+
+  document.getElementById('mapContainer').style.display = 'block';
+  document.getElementById('backBtn').style.display      = 'block';
+  document.getElementById('stopStreamBtn').style.display = 'block';
+
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: 17.385, lng: 78.4867 }, zoom: 14
+  });
+
+  // Status banner
+  const banner = document.createElement('div');
+  banner.id = 'liveStreamStatus';
+  banner.style.cssText = `
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:rgba(15,21,32,0.92); color:#38BDF8;
+    font-family:Arial,monospace; font-size:13px; font-weight:700;
+    padding:8px 18px; border-radius:20px;
+    border:1px solid rgba(56,189,248,0.35);
+    box-shadow:0 0 20px rgba(56,189,248,0.2);
+    pointer-events:none; white-space:nowrap; z-index:999;
+    display:flex; align-items:center; gap:8px;
+  `;
+  banner.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#38BDF8;display:inline-block;animation:blink 1s infinite;"></span> LIVE — Connecting to ${userId}...`;
+  document.getElementById('map').style.position = 'relative';
+  document.getElementById('map').appendChild(banner);
+
+  liveDirectionsRenderer = new google.maps.DirectionsRenderer({
+    map, suppressMarkers: false,
+    polylineOptions: { strokeColor:'#38BDF8', strokeWeight:5, strokeOpacity:0.85 }
+  });
+
+  // Start watching officer GPS once — no repeated permission prompts
+  startOfficerWatch();
+
+  // Poll immediately then every 3s using the stream endpoint (same as viewer page)
+  fetchStreamLocation(streamId, userId);
+  liveStreamInterval = setInterval(() => fetchStreamLocation(streamId, userId), 3000);
+}
+
+/* ── Officer GPS — obtained once via watchPosition, reused every poll ── */
+let officerPos       = null;
+let officerWatchId   = null;
+
+function startOfficerWatch(){
+  if(!navigator.geolocation || officerWatchId != null) return;
+  officerWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      officerPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if(window._officerMarker) window._officerMarker.setPosition(officerPos);
+    },
+    () => { officerPos = null; },
+    { enableHighAccuracy: true }
+  );
+}
+
+function stopOfficerWatch(){
+  if(officerWatchId != null){
+    navigator.geolocation.clearWatch(officerWatchId);
+    officerWatchId = null;
+  }
+  officerPos = null;
+}
+
+/* Poll GET /api/stream/:streamId — same endpoint the public viewer uses */
+async function fetchStreamLocation(streamId, userId){
+  try {
+    const res = await fetch(`${BASE}/api/stream/${streamId}`);
+    const loc = await res.json();
+
+    const banner = document.getElementById('liveStreamStatus');
+
+    if(!loc || loc.latitude == null){
+      if(banner) banner.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#F59E0B;display:inline-block;"></span> LIVE — Waiting for location from ${userId}...`;
+      return;
+    }
+
+    const userPos = { lat: Number(loc.latitude), lng: Number(loc.longitude) };
+
+    // Move / place user marker (red pulsing circle)
+    if(!liveUserMarker){
+      liveUserMarker = new google.maps.Marker({
+        position: userPos, map,
+        title: `${userId} (Live)`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10, fillColor:'#F43F5E', fillOpacity:1,
+          strokeColor:'#ffffff', strokeWeight:2
+        }
+      });
+    } else {
+      liveUserMarker.setPosition(userPos);
+    }
+
+    // Update banner
+    const now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if(banner) banner.innerHTML = `
+      <span style="width:8px;height:8px;border-radius:50%;background:#F43F5E;display:inline-block;animation:blink 1s infinite;"></span>
+      LIVE — ${userId} &nbsp;|&nbsp; ${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)} &nbsp;|&nbsp; ${now}
+    `;
+
+    // Use cached officerPos — no new permission prompt
+    if(officerPos){
+      if(!window._officerMarker){
+        window._officerMarker = new google.maps.Marker({
+          position: officerPos, map, title:'Your Location',
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale:5, fillColor:'#38BDF8', fillOpacity:1,
+            strokeColor:'#ffffff', strokeWeight:2
+          }
+        });
+      }
+
+      new google.maps.DirectionsService().route({
+        origin: officerPos, destination: userPos,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, (result, status) => {
+        if(status === 'OK') liveDirectionsRenderer.setDirections(result);
+      });
+
+      // fitBounds only on first load — after that just pan smoothly if user leaves view
+      if(!window._streamBoundsDone){
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(officerPos); bounds.extend(userPos);
+        map.fitBounds(bounds, { padding: 80 });
+        window._streamBoundsDone = true;
+      } else {
+        // Only pan if user marker moves outside current visible area
+        const currentBounds = map.getBounds();
+        if(currentBounds && !currentBounds.contains(userPos)){
+          map.panTo(userPos);
+        }
+      }
+    } else {
+      if(!window._streamBoundsDone){
+        map.panTo(userPos);
+        map.setZoom(15);
+        window._streamBoundsDone = true;
+      }
+    }
+
+  } catch(e){ console.error('Stream location fetch error:', e); }
+}
+
+/* Stop polling and clean up */
+function stopLiveStream(){
+  if(liveStreamInterval){ clearInterval(liveStreamInterval); liveStreamInterval = null; }
+  if(liveUserMarker){ liveUserMarker.setMap(null); liveUserMarker = null; }
+  if(liveDirectionsRenderer){ liveDirectionsRenderer.setMap(null); liveDirectionsRenderer = null; }
+  if(window._officerMarker){ window._officerMarker.setMap(null); window._officerMarker = null; }
+  stopOfficerWatch();
+  window._streamBoundsDone = false;
+  liveStreamUserId = null;
+}
+
+/* ── Trigger Formatter ── */
+function formatTrigger(raw){
+  const map = {
+    'battery_shutdown':'🔋 Battery Shutdown','MANUAL_PANIC':'🆘 Manual Panic',
+    'SAFETY_CHECK_NO_RESPONSE':'⚠ Safety Check — No Response','SAFETY_CHECK_NO':'🆘 User Clicked No',
+    'ROUTE_DEVIATION':'🛣 Route Deviation','FLAG_BASED_TRIGGER':'🚩 Flag-Based Trigger',
+    'SPEED_VIOLATION':'⚡ Speed Violation','UNAUTHORIZED_STOP':'🛑 Unauthorized Stop',
+    'ZONE_ENTRY':'🚨 Entered High Risk Zone','ZONE_EXIT':'✅ Exited High Risk Zone',
+    'route_deviation':'🛣 Route Deviation','speed_violation':'⚡ Speed Violation',
+    'unauthorized_stop':'🛑 Unauthorized Stop','OTHER':'❓ Other'
+  };
+  return map[raw] || (raw ? `⚠ ${raw}` : '🚨 Alert');
+}
+
+/* ── Build alert card HTML ── */
+function renderAlertItem(opts){
+  // opts: {type, user, userId, reason, time, lat, lng, extra, destLat, destLng}
+  const badgeClass = opts.type==='cab'?'badge-cab':opts.type==='walk'?'badge-walk':'badge-danger';
+  const badgeLabel = opts.type==='cab'?'CAB ALERT':opts.type==='walk'?'WALK PANIC':'HIGH RISK';
+  const itemClass = opts.type==='cab'?'cab':opts.type==='walk'?'walk':'';
+  const latLng = (opts.lat!=null&&opts.lng!=null)?`${Number(opts.lat).toFixed(4)}, ${Number(opts.lng).toFixed(4)}`:'—';
+
+  const trackBtn = (opts.type==='cab' && opts.lat!=null && opts.destLat!=null)
+    ? `<button class="btn btn-track" onclick="trackTrip(${opts.lat},${opts.lng},${opts.destLat},${opts.destLng})">🧭 Navigate</button>`
+    : (opts.lat!=null&&opts.lng!=null)
+    ? `<button class="btn btn-track" onclick="openMap(${opts.lat},${opts.lng})">📍 Track</button>`
+    : `<button class="btn btn-track" disabled>📍 Track</button>`;
+
+  return `
+    <div class="alert-item ${itemClass}">
+      <div class="alert-header">
+        <div>
+          <div class="alert-user">${opts.displayName||opts.userId||'Unknown'}</div>
+          <div class="alert-reason">${formatTrigger(opts.reason)}</div>
+        </div>
+        <span class="alert-badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="alert-meta">
+        <span>🕒 ${opts.time||'Unknown'}</span>
+        <span>📍 ${latLng}</span>
+        ${opts.vehicle?`<span>🚖 ${opts.vehicle}</span>`:''}
+        ${opts.zoneName?`<span>🗺 ${opts.zoneName}</span>`:''}
+        ${opts.battery!=null?`<span>🔋 ${opts.battery}%</span>`:''}
+      </div>
+      ${opts.extra||''}
+      <div class="btn-row">
+        <button class="btn btn-call" onclick="window.location.href='tel:${opts.mobile||''}'">📞 Call</button>
+        ${trackBtn}
+        <button class="btn btn-stream" data-userid="${opts.userId||''}" onclick="createStream('${opts.userId||''}')">📺 Stream</button>
+      </div>
+    </div>`;
+}
+
+/* ─────── ALERT POPUP SYSTEM ─────── */
+let lastAlertIds=[], lastWalkAlertIds=[], lastHighRiskAlertIds=[];
+let initialLoadDone = { cab: false, walk: false, highrisk: false }; // seed flags
+const alertQueue=[];
+let alertShowing=false;
+
+function queueAlert(a){ alertQueue.push(a); if(!alertShowing) showNextAlert(); }
+
+function showNextAlert(){
+  if(!alertQueue.length){ alertShowing=false; return; }
+  alertShowing=true;
+  const a = alertQueue.shift();
+  const s = {
+    cab:      {bg:'linear-gradient(135deg,#1a0508,#2d0a1a)',border:'#F43F5E',icon:'🚖',title:'CAB POLICE ALERT',sub:'Cab trip triggered a police support request'},
+    walk:     {bg:'linear-gradient(135deg,#1a0f00,#2d1a00)',border:'#F59E0B',icon:'🚶',title:'WALK PANIC ALERT',sub:'User triggered a panic during walk'},
+    highrisk: {bg:'linear-gradient(135deg,#0d0a1a,#1a0f2d)',border:'#8B5CF6',icon:'🔴',title:'HIGH RISK ZONE ALERT',sub:'Alert triggered in a high-risk area'}
+  }[a.type]||{bg:'#1a0508',border:'#F43F5E',icon:'🚨',title:'ALERT',sub:''};
+
+  const inner = document.getElementById('gapInner');
+  inner.style.background = s.bg;
+  inner.style.borderColor = s.border;
+  inner.style.boxShadow = `0 0 60px ${s.border}44`;
+  document.getElementById('gapBadge').textContent = s.icon;
+  document.getElementById('gapTitle').textContent = s.title;
+  document.getElementById('gapSubtitle').textContent = s.sub;
+  document.getElementById('gapBody').innerHTML = a.html;
+  document.getElementById('gapQueueInfo').textContent = alertQueue.length>0?`+${alertQueue.length} more alert${alertQueue.length>1?'s':''} waiting`:'';
+
+  // Acknowledge — navigate to location then show next
+  document.getElementById('gapAckBtn').onclick = () => {
+    document.getElementById('globalAlertPopup').style.display='none';
+    if(a.lat!=null&&a.lng!=null) openMap(a.lat,a.lng);
+    showNextAlert();
+  };
+
+  // Ignore (✕) — just dismiss and move to next alert
+  document.getElementById('gapIgnoreBtn').onclick = () => {
+    document.getElementById('globalAlertPopup').style.display='none';
+    showNextAlert();
+  };
+
+  document.getElementById('globalAlertPopup').style.display='flex';
+}
+
+function detectNewCabAlerts(alerts,users){
+  // On very first load, just seed the IDs silently — don't pop up existing alerts
+  if(!initialLoadDone.cab){
+    lastAlertIds = alerts.map(a=>a._id);
+    initialLoadDone.cab = true;
+    return;
+  }
+  alerts.forEach(a => {
+    if(!lastAlertIds.includes(a._id)){
+      const user=users.find(u=>u._id===a.userId)||{mobile:'N/A'};
+      const lat=a.currentLocation?.latitude, lng=a.currentLocation?.longitude;
+      const html = renderAlertItem({type:'cab',displayName:a.username||a.userId,userId:a.userId,mobile:user.mobile,reason:a.alertReason,time:a.createdAt?new Date(a.createdAt).toLocaleString():'',lat,lng,destLat:a.destination?.latitude,destLng:a.destination?.longitude,vehicle:`${a.vehicleType||'?'} — ${a.vehicleNumber||'N/A'}`});
+      queueAlert({type:'cab',lat,lng,html});
+    }
+  });
+  lastAlertIds = alerts.map(a=>a._id);
+}
+
+function detectNewWalkAlerts(panics,users){
+  // On very first load, just seed the IDs silently
+  if(!initialLoadDone.walk){
+    lastWalkAlertIds = panics.map(p=>p._id);
+    initialLoadDone.walk = true;
+    return;
+  }
+  panics.forEach(p => {
+    if(!lastWalkAlertIds.includes(p._id)){
+      const user=users.find(u=>u._id===p.userId)||{mobile:'N/A'};
+      const html = renderAlertItem({type:'walk',displayName:p.userId,userId:p.userId,mobile:user.mobile,reason:p.alertReason,time:p.createdAt?new Date(p.createdAt).toLocaleString():'',lat:p.latitude,lng:p.longitude});
+      queueAlert({type:'walk',lat:p.latitude,lng:p.longitude,html});
+    }
+  });
+  lastWalkAlertIds = panics.map(p=>p._id);
+}
+
+function detectNewHighRiskAlerts(alerts,users){
+  // On very first load, just seed the IDs silently
+  if(!initialLoadDone.highrisk){
+    lastHighRiskAlertIds = alerts.map(a=>a._id);
+    initialLoadDone.highrisk = true;
+    return;
+  }
+  alerts.forEach(a => {
+    if(!lastHighRiskAlertIds.includes(a._id)){
+      const user=users.find(u=>u._id===a.userId||u.username===a.username)||{mobile:'N/A'};
+      const lat=a.lat??a.location?.latitude??a.latitude, lng=a.lng??a.location?.longitude??a.longitude;
+      const html = renderAlertItem({type:'highrisk',displayName:a.username||user.username||a.userId,userId:a.userId||a.username,mobile:user.mobile,reason:a.trigger||a.alertType||a.type,time:(a.time||a.createdAt)?new Date(a.time||a.createdAt).toLocaleString():'',lat,lng,zoneName:a.zoneName,battery:a.batteryPct});
+      queueAlert({type:'highrisk',lat,lng,html});
+    }
+  });
+  lastHighRiskAlertIds = alerts.map(a=>a._id);
+}
+
+function acknowledgeAlert(){ document.getElementById('globalAlertPopup').style.display='none'; showNextAlert(); }
+
+/* ─────── MAP ─────── */
+let map;
+const geocodeCache = new Map();
+
+function openMap(lat,lng){
+  const dLat=Number(lat), dLng=Number(lng);
+  document.getElementById('mapContainer').style.display='block';
+  document.getElementById('backBtn').style.display='block';
+  document.getElementById('stopStreamBtn').style.display='none';
+
+  map = new google.maps.Map(document.getElementById('map'),{center:{lat:dLat,lng:dLng},zoom:16});
+  new google.maps.Marker({position:{lat:dLat,lng:dLng},map});
+
+  // If we have the user's location, draw a route on the embedded map only — no redirect
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const origin={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      const dest={lat:dLat,lng:dLng};
+      const ds=new google.maps.DirectionsService();
+      const dr=new google.maps.DirectionsRenderer({map});
+      ds.route({origin,destination:dest,travelMode:google.maps.TravelMode.DRIVING},(r,s)=>{
+        if(s==='OK') dr.setDirections(r);
+      });
+    },()=>{/* geolocation denied — marker already shown */},{enableHighAccuracy:true,timeout:6000});
+  }
+}
+
+function trackTrip(lLat,lLng,dLat,dLng){
+  if(lLat==null||lLng==null){alert('Live location not available.');return;}
+  document.getElementById('mapContainer').style.display='block';
+  document.getElementById('backBtn').style.display='block';
+  document.getElementById('stopStreamBtn').style.display='none';
+
+  const origin={lat:Number(lLat),lng:Number(lLng)};
+  const dest={lat:Number(dLat),lng:Number(dLng)};
+
+  map = new google.maps.Map(document.getElementById('map'),{zoom:14,center:origin});
+
+  const ds=new google.maps.DirectionsService();
+  const dr=new google.maps.DirectionsRenderer({map});
+
+  // Draw route from user's live location to their destination on the embedded map — no redirect
+  ds.route({origin,destination:dest,travelMode:google.maps.TravelMode.DRIVING},(r,s)=>{
+    if(s==='OK') dr.setDirections(r);
+    else console.error('Directions error:',s);
+  });
+}
+
+function closeMap(){
+  document.getElementById('mapContainer').style.display='none';
+  document.getElementById('backBtn').style.display='none';
+  document.getElementById('stopStreamBtn').style.display='none';
+  stopLiveStream();
+}
+
+function reverseGeocode(lat,lng){
+  return new Promise(res=>{
+    if(lat==null||lng==null){res(null);return;}
+    const key=`${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if(geocodeCache.has(key)){res(geocodeCache.get(key));return;}
+    if(typeof google==='undefined'||!google.maps?.Geocoder){res(null);return;}
+    new google.maps.Geocoder().geocode({location:{lat:Number(lat),lng:Number(lng)}},(results,status)=>{
+      const addr=status==='OK'&&results?.[0]?.formatted_address||null;
+      geocodeCache.set(key,addr); res(addr);
+    });
+  });
+}
+
+/* ─────── NEAREST POLICE STATION ─────── */
+const policeStationCache = new Map();
+
+function haversineDistance(lat1, lng1, lat2, lng2){
+  const R = 6371; // km
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function findNearestPoliceStation(lat, lng){
+  return new Promise(res => {
+    if(lat==null||lng==null){ res(null); return; }
+    const key = `${parseFloat(lat).toFixed(3)},${parseFloat(lng).toFixed(3)}`;
+    if(policeStationCache.has(key)){ res(policeStationCache.get(key)); return; }
+    if(typeof google==='undefined'||!google.maps?.places){ res(null); return; }
+
+    const service = new google.maps.places.PlacesService(document.createElement('div'));
+    service.nearbySearch({
+      location: { lat: Number(lat), lng: Number(lng) },
+      rankBy: google.maps.places.RankBy.DISTANCE,
+      keyword: 'police station'
+    }, (results, status) => {
+      if(status === google.maps.places.PlacesServiceStatus.OK && results?.length){
+        const p = results[0];
+        const pLat = p.geometry.location.lat();
+        const pLng = p.geometry.location.lng();
+        const dist = haversineDistance(Number(lat), Number(lng), pLat, pLng);
+        const distStr = dist < 1 ? `${(dist*1000).toFixed(0)} m` : `${dist.toFixed(1)} km`;
+        const result = { name: p.name, dist: distStr, lat: pLat, lng: pLng };
+        policeStationCache.set(key, result);
+        res(result);
+      } else {
+        res(null);
+      }
+    });
+  });
+}
+
+/* ─────── LABEL MAPS ─────── */
+const walkReasonLabels = {
+  'MANUAL_PANIC':              '🚨 Manual Panic Button',
+  'SAFETY_CHECK_NO_RESPONSE':  '⚠️ Safety Check - No Response',
+  'SAFETY_CHECK_NO':           '🆘 User Clicked No at Safety Check',
+  'OTHER':                     '❓ Other'
+};
+const cabReasonLabels = {
+  'MANUAL_PANIC':      '🚨 Manual Panic Button',
+  'ROUTE_DEVIATION':   '🛣️ Route Deviation',
+  'FLAG_BASED_TRIGGER':'🚩 Flag-Based Trigger',
+  'SPEED_VIOLATION':   '⚡ Speed Violation',
+  'UNAUTHORIZED_STOP': '🛑 Unauthorized Stop',
+  'OTHER':             '❓ Other'
+};
+const highRiskLabels = {
+  'battery_shutdown':  '🔋 Battery Shutdown',
+  'ZONE_ENTRY':        '🚨 Entered High Risk Zone',
+  'ZONE_EXIT':         '✅ Exited High Risk Zone',
+  'MANUAL_PANIC':      '🆘 Manual Panic',
+  'route_deviation':   '🛣️ Route Deviation',
+  'speed_violation':   '⚡ Speed Violation',
+  'unauthorized_stop': '🛑 Unauthorized Stop',
+  'OTHER':             '❓ Other'
+};
+
+/* ─────── LOAD FUNCTIONS ─────── */
+async function loadWalkAlerts(){
+  try {
+    const [users, panics] = await Promise.all([apiCall('/api/auth/users'), apiCall('/api/panic/locations')]);
+    detectNewWalkAlerts(panics||[], users||[]);
+    const list = document.getElementById('panicList');
+    if(!panics?.length){ list.innerHTML='<div class="empty"><div class="icon">✅</div>No Walk Alerts 🚶</div>'; return; }
+
+    let html = '';
+    for(const p of panics){
+      const user = (users||[]).find(u=>u._id===p.userId) || {mobile:'N/A'};
+      const reason = walkReasonLabels[p.alertReason] || '🚨 Manual Panic Button';
+      const created = p.createdAt ? new Date(p.createdAt).toLocaleString() : 'Unknown';
+      const updated = p.updatedAt ? new Date(p.updatedAt).toLocaleString() : 'Unknown';
+      const lat = p.latitude, lng = p.longitude;
+
+      // Fetch nearest police station
+      let stationHtml = '<div class="field-row"><span class="field-label">🚔 Nearest Station:</span> <span style="color:var(--text-muted);font-size:13px;">Locating...</span></div>';
+      if(lat!=null && lng!=null){
+        const station = await findNearestPoliceStation(lat, lng);
+        if(station){
+          stationHtml = `
+            <div class="field-row" style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:8px;padding:8px 10px;margin:6px 0;">
+              <span class="field-label">🚔 Nearest Station:</span>
+              <span style="color:var(--accent);font-weight:600;">${station.name}</span>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">(${station.dist} away)</span>
+              <button onclick="openMap(${station.lat},${station.lng})" style="margin-left:8px;background:rgba(56,189,248,0.1);color:var(--accent);border:1px solid rgba(56,189,248,0.25);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;">📍 View</button>
+            </div>`;
+        } else {
+          stationHtml = '<div class="field-row"><span class="field-label">🚔 Nearest Station:</span> <span style="color:var(--text-muted);font-size:13px;">Not found</span></div>';
+        }
+      }
+
+      html += `
+        <div class="alert-item walk">
+          <div class="alert-header">
+            <div>
+              <div class="alert-user">User: ${p.userId || 'Unknown'}</div>
+            </div>
+            <span class="alert-badge badge-walk">WALK PANIC</span>
+          </div>
+          <div class="field-row"><span class="field-label">📋 Reason:</span> ${reason}</div>
+          <div class="field-row"><span class="field-label">🕒 Created:</span> ${created}</div>
+          <div class="field-row"><span class="field-label">🔄 Updated:</span> ${updated}</div>
+          ${stationHtml}
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-call" onclick="window.location.href='tel:${user.mobile}'">📞 Call</button>
+            ${(lat!=null&&lng!=null)?`<button class="btn btn-track" onclick="openMap(${lat},${lng})">📍 Track</button>`:`<button class="btn btn-track" disabled>📍 Track</button>`}
+            <button class="btn btn-stream" data-userid="${p.userId}" onclick="createStream('${p.userId}')">📺 Stream</button>
+          </div>
+        </div>`;
+    }
+    list.innerHTML = html;
+    document.getElementById('walkDot').style.display = panics.length ? 'block' : 'none';
+  } catch(e){ console.error(e); }
+}
+
+async function loadActiveWalkSessions(){
+  try {
+    const [data, users] = await Promise.all([apiCall('/api/walk/active'), apiCall('/api/auth/users')]);
+    const sessions = Array.isArray(data) ? data : [];
+    const container = document.getElementById('activeWalkSessions');
+    if(!sessions.length){ container.innerHTML='<div class="empty"><div class="icon">🚶</div>No Active Walk Sessions 🚶</div>'; return; }
+
+    let html = '';
+    for(const s of sessions){
+      const user = (users||[]).find(u=>u.username===s.username) || {mobile:'N/A'};
+      const lat = s.startLocation?.latitude, lng = s.startLocation?.longitude;
+      const started = s.startedAt ? new Date(s.startedAt).toLocaleString() : 'Unknown';
+
+      // Fetch nearest police station
+      let stationHtml = '';
+      if(lat!=null && lng!=null){
+        const station = await findNearestPoliceStation(lat, lng);
+        if(station){
+          stationHtml = `
+            <div class="field-row" style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:8px;padding:8px 10px;margin:6px 0;">
+              <span class="field-label">🚔 Nearest Station:</span>
+              <span style="color:var(--accent);font-weight:600;">${station.name}</span>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">(${station.dist} away)</span>
+              <button onclick="openMap(${station.lat},${station.lng})" style="margin-left:8px;background:rgba(56,189,248,0.1);color:var(--accent);border:1px solid rgba(56,189,248,0.25);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;">📍 View</button>
+            </div>`;
+        } else {
+          stationHtml = '<div class="field-row"><span class="field-label">🚔 Nearest Station:</span> <span style="color:var(--text-muted);font-size:13px;">Not found</span></div>';
+        }
+      }
+
+      html += `
+        <div class="alert-item walk">
+          <div class="alert-header">
+            <div>
+              <div class="alert-user">User: ${s.username || 'Unknown'}</div>
+            </div>
+            <span class="alert-badge badge-walk">ACTIVE</span>
+          </div>
+          <div class="field-row"><span class="field-label">📊 Status:</span> ${s.status || 'Active'}</div>
+          <div class="field-row"><span class="field-label">🕒 Started:</span> ${started}</div>
+          ${stationHtml}
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-call" onclick="window.location.href='tel:${user.mobile}'">📞 Call</button>
+            ${(lat!=null&&lng!=null)?`<button class="btn btn-track" onclick="openMap(${lat},${lng})">📍 Track</button>`:`<button class="btn btn-track" disabled>📍 Track</button>`}
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+  } catch(e){ console.error(e); }
+}
+
+async function loadCabTrips(){
+  try {
+    const [tripData, users] = await Promise.all([apiCall('/api/cab-escort/active'), apiCall('/api/auth/users')]);
+    const trips = tripData?.trips || [];
+    const container = document.getElementById('activeTrips');
+    if(!trips.length){ container.innerHTML='<div class="empty"><div class="icon">🚖</div>No Active Cab Trips 🚖</div>'; return; }
+
+    let html = '';
+    for(const t of trips){
+      const user = (users||[]).find(u=>u._id===t.userId) || {mobile:'N/A'};
+      const lat = t.currentLocation?.latitude, lng = t.currentLocation?.longitude;
+      const dLat = t.destination?.latitude, dLng = t.destination?.longitude;
+      let destDisplay = '—';
+      if(dLat!=null&&dLng!=null){
+        try{ const name=await reverseGeocode(dLat,dLng); destDisplay=name||`${dLat.toFixed(4)}, ${dLng.toFixed(4)}`; }catch(e){ destDisplay=`${dLat.toFixed(4)}, ${dLng.toFixed(4)}`; }
+      }
+      const openMapLink = (dLat!=null&&dLng!=null) ? `<a href="https://www.google.com/maps?q=${dLat},${dLng}" target="_blank" style="color:var(--accent);font-size:13px;margin-left:6px;">(Open Map)</a>` : '';
+      html += `
+        <div class="alert-item cab">
+          <div class="alert-header">
+            <div>
+              <div class="alert-user">👤 User: ${t.username || user.username || 'Unknown'}</div>
+            </div>
+            <span class="alert-badge badge-cab">🚖 Trip Status: ${t.status || 'ACTIVE'}</span>
+          </div>
+          <div class="field-row"><span class="field-label">🎯 Destination:</span> ${destDisplay}${openMapLink}</div>
+          <div class="field-row"><span class="field-label">🕒 Started At:</span> ${t.createdAt ? new Date(t.createdAt).toLocaleString() : 'Unknown'}</div>
+          <div class="field-row"><span class="field-label">🚖 Vehicle Number:</span> ${t.vehicleNumber || 'Not Provided'}</div>
+          <div class="field-row"><span class="field-label">🚘 Vehicle Type:</span> ${t.vehicleType || 'Not Selected'}</div>
+          <div class="field-row"><span class="field-label">🚩 Suspicious Flags:</span> 0</div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-call" onclick="window.location.href='tel:${user.mobile}'">📞 Call</button>
+            ${(lat!=null&&lng!=null&&dLat!=null&&dLng!=null)?`<button class="btn btn-track" onclick="trackTrip(${lat},${lng},${dLat},${dLng})">🧭 Navigate</button>`:`<button class="btn btn-track" disabled>🧭 Navigate</button>`}
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+  } catch(e){ console.error(e); document.getElementById('activeTrips').innerHTML='<div class="empty"><div class="icon">⚠</div>Error loading trips</div>'; }
+}
+
+async function loadCabAlerts(){
+  try {
+    const [alertData, users] = await Promise.all([apiCall('/api/cab-escort/police-support'), apiCall('/api/auth/users')]);
+    const alerts = alertData?.alerts || [];
+    detectNewCabAlerts(alerts, users||[]);
+    const container = document.getElementById('cabAlerts');
+    if(!alerts.length){ container.innerHTML='<div class="empty"><div class="icon">🚔</div>No Cab Police Alerts 🚔</div>'; return; }
+
+    let html = '';
+    for(const t of alerts){
+      const user = (users||[]).find(u=>u._id===t.userId) || {mobile:'N/A'};
+      const lat = t.currentLocation?.latitude, lng = t.currentLocation?.longitude;
+      const dLat = t.destination?.latitude, dLng = t.destination?.longitude;
+      let destDisplay = null;
+      if(dLat!=null&&dLng!=null){
+        try{ const name=await reverseGeocode(dLat,dLng); destDisplay=name||`${dLat.toFixed(4)}, ${dLng.toFixed(4)}`; }catch(e){ destDisplay=`${dLat.toFixed(4)}, ${dLng.toFixed(4)}`; }
+      }
+      const reason = cabReasonLabels[t.alertReason] || '🚨 Manual Panic Button';
+      const liveText = (lat!=null&&lng!=null) ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Location unknown';
+      html += `
+        <div class="alert-item" style="border-left-color:var(--danger);">
+          <div class="alert-header">
+            <div>
+              <div class="alert-user">🚨 Police Alert User: ${t.username || t.userId || 'Unknown'}</div>
+              <div class="alert-reason" style="font-size:13px;color:var(--text-muted);">Live: ${liveText}</div>
+            </div>
+            <span class="alert-badge badge-danger">CAB ALERT</span>
+          </div>
+          ${destDisplay ? `<div class="field-row"><span class="field-label">🎯 Destination:</span> ${destDisplay}</div>` : ''}
+          <div class="field-row"><span class="field-label">🚩 Suspicious Flags:</span> 0</div>
+          <div class="field-row"><span class="field-label">📋 Reason:</span> ${reason}</div>
+          <div class="field-row"><span class="field-label">🕒 Started At:</span> ${t.createdAt ? new Date(t.createdAt).toLocaleString() : 'Unknown'}</div>
+          <div class="field-row"><span class="field-label">🚖 Vehicle Number:</span> ${t.vehicleNumber || 'Not Provided'}</div>
+          <div class="field-row"><span class="field-label">🚘 Vehicle Type:</span> ${t.vehicleType || 'Unknown'}</div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-call" onclick="window.location.href='tel:${user.mobile}'">📞 Call</button>
+            ${(lat!=null&&lng!=null&&dLat!=null&&dLng!=null)?`<button class="btn btn-track" onclick="trackTrip(${lat},${lng},${dLat},${dLng})">🧭 Navigate</button>`:`<button class="btn btn-track" disabled>🧭 Navigate</button>`}
+            <button class="btn btn-stream" data-userid="${t.username||t.userId}" onclick="createStream('${t.username||t.userId}')">📺 Stream</button>
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+    document.getElementById('cabDot').style.display = alerts.length ? 'block' : 'none';
+  } catch(e){ console.error(e); document.getElementById('cabAlerts').innerHTML='<div class="empty"><div class="icon">⚠</div>Error loading alerts</div>'; }
+}
+
+async function loadHighRiskAlerts(){
+  try {
+    const [data, users] = await Promise.all([apiCall('/api/secureme/alerts'), apiCall('/api/auth/users')]);
+    const alerts = Array.isArray(data) ? data : (data?.alerts || []);
+    detectNewHighRiskAlerts(alerts, users||[]);
+    const container = document.getElementById('highRiskAlertsList');
+    if(!alerts.length){ container.innerHTML='<div class="empty"><div class="icon">🟢</div>No High Risk Alerts 🟢</div>'; return; }
+
+    let html = '';
+    for(const a of alerts){
+      const user = (users||[]).find(u=>u._id===a.userId||u.username===a.username) || {mobile:'N/A'};
+      const lat = a.lat??a.location?.latitude??a.latitude;
+      const lng = a.lng??a.location?.longitude??a.longitude;
+      const rawTime = a.time || a.createdAt;
+      const timeStr = rawTime ? new Date(rawTime).toLocaleString() : 'Unknown';
+      const triggerRaw = a.trigger || a.alertType || a.type || '';
+      const alertType = highRiskLabels[triggerRaw] || (triggerRaw ? `⚠️ ${triggerRaw}` : '🔴 High Risk Alert');
+      const reason = a.reason || a.message || '';
+
+      let locationDisplay = (lat!=null&&lng!=null) ? `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}` : 'Location unknown';
+      if(lat!=null&&lng!=null){ try{ const addr=await reverseGeocode(lat,lng); if(addr) locationDisplay=addr; }catch(e){} }
+
+      // Nearest police station
+      let stationHtml = '';
+      if(lat!=null&&lng!=null){
+        const station = await findNearestPoliceStation(lat, lng);
+        if(station){
+          stationHtml = `
+            <div class="field-row" style="background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:8px;padding:8px 10px;margin:6px 0;">
+              <span class="field-label">🚔 Nearest Station:</span>
+              <span style="color:var(--accent);font-weight:600;">${station.name}</span>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:6px;">(${station.dist} away)</span>
+              <button onclick="openMap(${station.lat},${station.lng})" style="margin-left:8px;background:rgba(56,189,248,0.1);color:var(--accent);border:1px solid rgba(56,189,248,0.25);border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;">📍 View</button>
+            </div>`;
+        } else {
+          stationHtml = '<div class="field-row"><span class="field-label">🚔 Nearest Station:</span> <span style="color:var(--text-muted);font-size:13px;">Not found</span></div>';
+        }
+      }
+
+      html += `
+        <div class="alert-item" style="border-left-color:#ff4444;">
+          <div class="alert-header">
+            <div>
+              <div class="alert-user">👤 User: ${a.username || user.username || a.userId || 'Unknown'}</div>
+            </div>
+            <span class="alert-badge badge-danger">HIGH RISK</span>
+          </div>
+          <div class="field-row"><span class="field-label">🔴 Alert Type:</span> ${alertType}</div>
+          <div class="field-row"><span class="field-label">📍 Location:</span> ${locationDisplay}</div>
+          <div class="field-row"><span class="field-label">🕒 Time:</span> ${timeStr}</div>
+          ${a.mode ? `<div class="field-row"><span class="field-label">🚦 Mode:</span> ${a.mode.toUpperCase()}</div>` : ''}
+          ${a.batteryPct!=null ? `<div class="field-row"><span class="field-label">🔋 Battery at Alert:</span> ${a.batteryPct}%</div>` : ''}
+          ${reason ? `<div class="field-row"><span class="field-label">📋 Reason:</span> ${reason}</div>` : ''}
+          ${a.zoneName ? `<div class="field-row"><span class="field-label">🗺️ Zone:</span> ${a.zoneName}</div>` : ''}
+          ${stationHtml}
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-call" onclick="window.location.href='tel:${user.mobile}'">📞 Call</button>
+            ${(lat!=null&&lng!=null)?`<button class="btn btn-track" onclick="openMap(${lat},${lng})">📍 Track</button>`:`<button class="btn btn-track" disabled>📍 Track</button>`}
+            <button class="btn btn-stream" data-userid="${a.username||a.userId}" onclick="createStream('${a.username||a.userId}')">📺 Stream</button>
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+    document.getElementById('hrDot').style.display = alerts.length ? 'block' : 'none';
+  } catch(e){ console.error(e); }
+}
+
+/* ─────── CHARTS ─────── */
+let dayChart, weekChart, monthChart;
+const chartDefaults = {
+  type:'doughnut',
+  options:{
+    responsive:true, maintainAspectRatio:false, cutout:'72%',
+    plugins:{legend:{display:false},tooltip:{enabled:false}},
+    animation:{animateRotate:true,duration:600}
+  }
+};
+
+function makeChart(id,current,previous){
+  const ctx = document.getElementById(id);
+  if(!ctx) return null;
+  return new Chart(ctx,{...chartDefaults,data:{
+    datasets:[{
+      data:[current||0,previous||1],
+      backgroundColor:['#38BDF8','rgba(56,189,248,0.12)'],
+      borderColor:['#38BDF8','rgba(56,189,248,0.05)'],
+      borderWidth:2, hoverOffset:0
+    }]
+  }});
+}
+
+function updateChart(id,current,previous,ref){
+  if(ref) ref.destroy();
+  return makeChart(id,current,previous);
+}
+
+async function updateDashboardStats(){
+  try {
+    const [walkSessions,cabData,cabAlertsData,walkAlertsData] = await Promise.all([
+      apiCall('/api/walk/active'), apiCall('/api/cab-escort/active'),
+      apiCall('/api/cab-escort/police-support'), apiCall('/api/panic/locations')
+    ]);
+    const activeCabs=cabData?.trips||[], cabAlerts=cabAlertsData?.alerts||[];
+    const activeWalks=Array.isArray(walkSessions)?walkSessions:[];
+    const walkAlerts=Array.isArray(walkAlertsData)?walkAlertsData:[];
+
+    const now=new Date();
+    const sw=new Date(now); sw.setDate(now.getDate()-7);
+    const sm=new Date(now); sm.setDate(now.getDate()-30);
+    const filter=(items,d)=>items.filter(i=>new Date(i.createdAt||i.startedAt)>=d);
+
+    const wCabT=filter(activeCabs,sw).length, wWalkT=filter(activeWalks,sw).length;
+    const mCabT=filter(activeCabs,sm).length, mWalkT=filter(activeWalks,sm).length;
+
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+
+    set('count-cab-today',activeCabs.length); set('count-walk-today',activeWalks.length);
+    set('count-week-cab-trips',wCabT); set('count-week-walk-trips',wWalkT); set('count-week-total-trips',wCabT+wWalkT);
+    set('count-month-cab-trips',mCabT); set('count-month-walk-trips',mWalkT); set('count-month-total-trips',mCabT+mWalkT);
+    set('count-total-cab-trips',activeCabs.length); set('count-total-walk-trips',activeWalks.length); set('count-lifetime-total-trips',activeCabs.length+activeWalks.length);
+    set('count-week-cab',cabAlerts.length); set('count-week-walk',walkAlerts.length); set('count-week-total',cabAlerts.length+walkAlerts.length);
+    set('count-month-cab',cabAlerts.length); set('count-month-walk',walkAlerts.length); set('count-month-total',cabAlerts.length+walkAlerts.length);
+    set('count-total-cab',cabAlerts.length); set('count-total-walk',walkAlerts.length); set('count-total',cabAlerts.length+walkAlerts.length);
+
+    set('today-cab-alerts',activeCabs.length); set('today-walk-alerts',activeWalks.length);
+    set('week-cab-alerts',cabAlerts.length); set('week-walk-alerts',walkAlerts.length);
+    set('month-cab-alerts',cabAlerts.length); set('month-walk-alerts',walkAlerts.length);
+
+    const todayTotal=activeCabs.length+activeWalks.length;
+    const weekTotal=cabAlerts.length+walkAlerts.length;
+    const monthTotal=cabAlerts.length+walkAlerts.length;
+    const yest=Math.max(1,Math.floor(todayTotal*0.8));
+    const lw=Math.max(1,Math.floor(weekTotal*0.75)||5);
+    const lm=Math.max(1,Math.floor(monthTotal*0.65)||10);
+
+    function pct(c,p){ const v=(((c-p)/p)*100).toFixed(1); return {v, label:(v>0?'+':'')+v+'%', cls:v>0?'change-up':'change-down'}; }
+    const dc=pct(todayTotal,yest), wc=pct(weekTotal,lw), mc=pct(monthTotal,lm);
+
+    const setChange=(id,obj)=>{ const el=document.getElementById(id); if(el){el.textContent=obj.label;el.className='chart-change '+obj.cls;} };
+    setChange('day-comparison',dc); setChange('week-comparison',wc); setChange('month-comparison',mc);
+
+    dayChart = updateChart('dayChart',todayTotal,yest,dayChart);
+    weekChart = updateChart('weekChart',weekTotal,lw,weekChart);
+    monthChart = updateChart('monthChart',monthTotal,lm,monthChart);
+
+  } catch(e){ console.error('Dashboard stats error:',e); }
+}
+
+/* ─────── RISK ZONES ─────── */
+let rzMap,rzDrawingManager,rzCurrentPolygon,rzSavedPolygons=[],rzZonesVisible=false,rzDeleteMode=false,rzMapInitialized=false;
+
+function initRzMap(){
+  if(rzMapInitialized) return; rzMapInitialized=true;
+  rzMap = new google.maps.Map(document.getElementById('rzMap'),{center:{lat:17.385,lng:78.4867},zoom:12,mapTypeControl:true,streetViewControl:false});
+  rzDrawingManager = new google.maps.drawing.DrawingManager({
+    drawingMode:google.maps.drawing.OverlayType.POLYGON, drawingControl:true,
+    drawingControlOptions:{position:google.maps.ControlPosition.TOP_CENTER,drawingModes:['polygon']},
+    polygonOptions:{strokeColor:'#F43F5E',strokeOpacity:0.9,strokeWeight:2,fillColor:'#F43F5E',fillOpacity:0.2,editable:true}
+  });
+  rzDrawingManager.setMap(rzMap);
+  google.maps.event.addListener(rzDrawingManager,'overlaycomplete',e=>{
+    if(rzCurrentPolygon) rzCurrentPolygon.setMap(null);
+    rzCurrentPolygon=e.overlay; rzDrawingManager.setDrawingMode(null);
+    rzSetStatus('Zone drawn. Click Save Zone to save it.');
+  });
+}
+
+function rzSetStatus(msg){ document.getElementById('rzStatusMsg').textContent=msg; }
+
+async function rzSaveZone(){
+  if(!rzCurrentPolygon){rzSetStatus('⚠ Draw a zone first.');return;}
+  const path=rzCurrentPolygon.getPath(), coords=[];
+  for(let i=0;i<path.getLength();i++) coords.push({lat:path.getAt(i).lat(),lng:path.getAt(i).lng()});
+  rzSetStatus('Saving zone...');
+  try {
+    const res=await fetch('https://securebackend.in/api/secureme/save-zone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone:coords})});
+    const data=await res.json();
+    rzCurrentPolygon.setOptions({editable:false});
+    rzSavedPolygons.push({id:data._id||data.id||'zone_'+Date.now(),polygon:rzCurrentPolygon});
+    rzCurrentPolygon=null; rzSetStatus('✅ Zone saved.');
+  } catch(e){ rzSetStatus('❌ Failed to save zone.'); }
+}
+
+async function rzToggleZones(){
+  const btn=document.getElementById('rzShowBtn');
+  if(rzZonesVisible){ rzSavedPolygons.forEach(z=>z.polygon.setMap(null)); rzZonesVisible=false; btn.textContent='👁 Show Zones'; rzSetStatus('Zones hidden.'); }
+  else { btn.textContent='Loading...'; await rzLoadZones(); rzZonesVisible=true; btn.textContent='🙈 Hide Zones'; }
+}
+
+async function rzLoadZones(){
+  rzSavedPolygons.forEach(z=>z.polygon.setMap(null)); rzSavedPolygons=[];
+  rzSetStatus('Loading zones...');
+  try {
+    const res=await fetch('https://securebackend.in/api/secureme/get-zone');
+    const zones=await res.json();
+    if(!Array.isArray(zones)||!zones.length){rzSetStatus('No zones found.');return;}
+    zones.forEach(zoneObj=>{
+      const coords=Array.isArray(zoneObj)?zoneObj:zoneObj.zone;
+      const id=zoneObj._id||'zone_'+Math.random();
+      const polygon=new google.maps.Polygon({paths:coords.map(c=>({lat:c.lat,lng:c.lng})),strokeColor:'#F43F5E',strokeOpacity:0.9,strokeWeight:2,fillColor:'#F43F5E',fillOpacity:0.18,map:rzMap});
+      google.maps.event.addListener(polygon,'click',()=>{if(rzDeleteMode)rzConfirmDelete(id,polygon);});
+      rzSavedPolygons.push({id,polygon});
+    });
+    rzSetStatus(`✅ ${zones.length} zone(s) loaded.`);
+  } catch(e){ rzSetStatus('❌ Failed to load zones.'); }
+}
+
+function rzEnableDelete(){
+  if(!rzZonesVisible){rzSetStatus('⚠ Show zones first.');return;}
+  rzDeleteMode=!rzDeleteMode;
+  const btn=document.getElementById('rzDeleteBtn');
+  btn.textContent=rzDeleteMode?'❌ Cancel Delete':'🗑 Delete Zone';
+  rzSetStatus(rzDeleteMode?'Delete mode ON — click a zone to delete.':'Draw or manage zones.');
+}
+
+function rzConfirmDelete(id,polygon){ if(confirm('Delete this zone permanently?')) rzDeleteZone(id,polygon); }
+
+async function rzDeleteZone(id,polygon){
+  rzSetStatus('Deleting zone...');
+  try {
+    await fetch(`https://securebackend.in/api/secureme/zone/${id}`,{method:'DELETE',headers:{'Content-Type':'application/json'}});
+    polygon.setMap(null); rzSavedPolygons=rzSavedPolygons.filter(z=>z.id!==id);
+    rzSetStatus(`✅ Zone deleted. ${rzSavedPolygons.length} remaining.`);
+  } catch(e){ polygon.setMap(null); rzSavedPolygons=rzSavedPolygons.filter(z=>z.id!==id); rzSetStatus('⚠ Zone removed (server error).'); }
+}
+
+/* ─────── REFRESH ─────── */
+async function refreshAll(){
+  try{ await loadWalkAlerts(); }catch(e){ console.error(e); }
+  try{ await loadActiveWalkSessions(); }catch(e){ console.error(e); }
+  try{ await loadCabTrips(); }catch(e){ console.error(e); }
+  try{ await loadCabAlerts(); }catch(e){ console.error(e); }
+  try{ await loadHighRiskAlerts(); }catch(e){ console.error(e); }
+  try{ await updateDashboardStats(); }catch(e){ console.error(e); }
+}
+
+window.addEventListener('load',()=>{ refreshAll(); setInterval(refreshAll,5000); });
+</script>
+</body>
+</html>
