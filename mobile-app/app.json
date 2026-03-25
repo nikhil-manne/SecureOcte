@@ -21,7 +21,7 @@
       "package": "com.nikhil9990.exposafetytestapp",
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "YOUR_API_KEY_HERE"
         }
       },
       "permissions": [
@@ -99,7 +99,7 @@
       "expo-secure-store"
     ],
     "extra": {
-      "googleApiKey": "",
+      "googleApiKey": "YOUR_API_KEY_HERE",
       "eas": {
         "projectId": "98b7d7e8-0aca-468e-a177-633764c96ba7"
       }
