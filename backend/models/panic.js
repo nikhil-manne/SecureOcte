@@ -26,3 +26,5 @@ panicSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 });
 
 const Panic = mongoose.model("Panic", panicSchema);
 export default Panic;
+
+

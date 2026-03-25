@@ -1,10 +1,12 @@
+import verifyToken from "../middlewares/verifyToken.js";
+import logger from "../config/logger.js";
 // routes/route.js
 import express from "express";
 
 const router = express.Router();
 
 // GET /route?origin=lat,lng&destination=address or lat,lng
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   try {
     const { origin, destination } = req.query;
     if (!origin || !destination) {
@@ -27,10 +29,9 @@ router.get("/", async (req, res) => {
 
     return res.json(data);
   } catch (err) {
-    console.error("Route error:", err);
+    logger.error("Route error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
 export default router;
-
