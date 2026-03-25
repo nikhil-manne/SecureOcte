@@ -99,7 +99,7 @@
       "expo-secure-store"
     ],
     "extra": {
-      "googleApiKey": "AIzaSyAzfiI2Oh632S5vjsbDn0s_FMXJuzFGKwk",
+      "googleApiKey": "",
       "eas": {
         "projectId": "98b7d7e8-0aca-468e-a177-633764c96ba7"
       }
