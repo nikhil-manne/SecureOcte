@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live User Navigation</title>
+
+  <!-- GOOGLE MAPS -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAzfiI2Oh632S5vjsbDn0s_FMXJuzFGKwk"></script>
+
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 6px;
+      z-index: 9999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="info">📍 Waiting for location permission…</div>
+<div id="map"></div>
+
+<script>
+const BASE = "https://safety-backend-1-j4tx.onrender.com";
+const streamId = window.location.pathname.split("/").pop();
+
+let map;
+let directionsService;
+let directionsRenderer;
+
+let myLocation = null;
+let userLocation = null;
+
+/* ---------- INIT MAP ---------- */
+function initMap(center) {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center,
+    zoom: 15
+  });
+
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    map,
+    suppressMarkers: false
+  });
+}
+
+/* ---------- GET MY LOCATION ---------- */
+function getMyLocation() {
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      myLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+
+      document.getElementById("info").innerText =
+        "🚓 Navigation started";
+
+      initMap(myLocation);
+      startUserTracking();
+    },
+    () => {
+      alert("Location permission denied");
+    },
+    { enableHighAccuracy: true }
+  );
+}
+
+/* ---------- FETCH USER LOCATION ---------- */
+async function fetchUserLocation() {
+  const res = await fetch(`${BASE}/api/stream/${streamId}`);
+  const loc = await res.json();
+
+  if (!loc || !loc.latitude) return null;
+
+  return {
+    lat: loc.latitude,
+    lng: loc.longitude
+  };
+}
+
+/* ---------- UPDATE ROUTE ---------- */
+async function updateRoute() {
+  if (!myLocation || !userLocation) return;
+
+  directionsService.route(
+    {
+      origin: myLocation,
+      destination: userLocation,
+      travelMode: google.maps.TravelMode.DRIVING
+    },
+    (result, status) => {
+      if (status === "OK") {
+        directionsRenderer.setDirections(result);
+      }
+    }
+  );
+}
+
+/* ---------- LIVE USER TRACKING ---------- */
+function startUserTracking() {
+  setInterval(async () => {
+    userLocation = await fetchUserLocation();
+    updateRoute();
+  }, 3000);
+}
+
+/* ---------- START ---------- */
+getMyLocation();
+</script>
+
+</body>
+</html>
+
