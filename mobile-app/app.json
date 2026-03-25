@@ -21,7 +21,7 @@
       "package": "com.nikhil9990.exposafetytestapp",
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyAzfiI2Oh632S5vjsbDn0s_FMXJuzFGKwk"
+          "apiKey": ""
         }
       },
       "permissions": [
