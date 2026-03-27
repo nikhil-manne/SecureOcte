@@ -5,7 +5,7 @@ import logger from "./config/logger.js";
    ✅ GEMINI CONFIG
 ========================================================= */
 
-const GEMINI_API_KEY = "AIzaSyBKpFJdC2enPcZ1nrWP_pAtfDUnIqPWF8M";
+const GEMINI_API_KEY = "PASTE_YOUR_GEMINI_API_KEY";
 
 if (!GEMINI_API_KEY) {
   throw new Error("❌ GEMINI_API_KEY is missing");
