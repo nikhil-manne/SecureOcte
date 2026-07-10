@@ -224,6 +224,6 @@ npx expo start
 ## 👤 Author
 
 **Manne Nikhil**
-Backend & Systems Engineer
+Full Stack and product Engineer
 
 ---
